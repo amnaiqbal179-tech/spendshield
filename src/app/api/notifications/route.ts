@@ -10,33 +10,35 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Clerk ID ke zariye database se user find karein
     const user = await db.user.findUnique({
       where: { clerkUserId: userId },
     });
 
     if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+      return NextResponse.json({ success: true, data: [] }, { status: 200 });
     }
 
-    // URL se query params check karein (e.g., /api/notifications?view=manager)
     const { searchParams } = new URL(req.url);
     const view = searchParams.get("view");
 
     let notifications;
 
-    if (view === "manager") {
-      // Manager ke liye: Sabhi requests ya manager-specific notifications fetch karein
+    // Check if user has admin/manager roles safely
+    const isManagerRole = user.role === "ADMIN" || user.role === "FINANCE_MANAGER" || user.role === "MANAGER";
+
+    if (view === "manager" && isManagerRole) {
+      // Manager/Admin ke liye organization ki sari notifications
       notifications = await db.notification.findMany({
         where: {
-          // Aap yahan manager ki ID ya organization ki notifications filter kar sakte hain
-          userId: user.id, 
+          ...(user.organizationId ? { organizationId: user.organizationId } : {}),
         },
         orderBy: {
           createdAt: "desc",
         },
       });
     } else {
-      // Employee ke liye: Sirf uski apni notifications
+      // Employee ke liye: Wahi notifications jo is user ki ID se linked hain
       notifications = await db.notification.findMany({
         where: {
           userId: user.id,

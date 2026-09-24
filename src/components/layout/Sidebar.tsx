@@ -18,6 +18,8 @@ import {
   CheckCircle,
   Package,
   Bell,
+  FileSearch,
+  Layers,
 } from "lucide-react";
 
 export default function Sidebar() {
@@ -39,13 +41,14 @@ export default function Sidebar() {
         { label: "Decisions", icon: GitBranch, href: "/decisions" },
         { label: "Approvals", icon: CheckCircle2, href: "/approvals" },
         { label: "Forecast", icon: TrendingUp, href: "/forecast" },
+        { label: "Notifications", icon: Bell, href: "/notifications" },
       ]
     : [
         { label: "My Requests", icon: FileText, href: "/requests" },
         { label: "Approved Tools", icon: CheckCircle, href: "/employee/my-tools" },
         { label: "Software Catalog", icon: Package, href: "/employee/catalog" },
-        { label: "Notifications", icon: Bell, href: "/employee/notifications" },
-        { label: "Settings", icon: Settings, href: "/employee/settings" }, // Yeh employee ke liye add kar diya hai
+        { label: "Notifications", icon: Bell, href: "/notifications" },
+        { label: "Settings", icon: Settings, href: "/employee/settings" },
       ];
 
   const manageItems = [

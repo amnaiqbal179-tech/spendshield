@@ -3,6 +3,7 @@ import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { getDemoData } from "@/lib/demo-data";
+import HomeInteractiveComponents from "@/components/home/HomeInteractiveComponents";
 import {
   ArrowRight,
   BarChart3,
@@ -315,7 +316,7 @@ export default async function Home() {
 
       {/* Hero */}
       <section className="relative">
-        <div className="mx-auto grid max-w-7xl items-center gap-16 px-6 pb-24 pt-20 lg:grid-cols-[1fr_0.9fr] lg:px-8 lg:pb-32 lg:pt-28">
+        <div className="mx-auto grid max-w-7xl items-center gap-12 px-6 pb-20 pt-8 sm:pt-12 lg:grid-cols-[1fr_0.9fr] lg:px-8 lg:pb-24 lg:pt-12">
           <div>
             <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-white/80 px-3.5 py-2 text-xs font-semibold text-indigo-600 shadow-sm">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-indigo-500" />
@@ -539,6 +540,11 @@ export default async function Home() {
             save?
           </p>
         </div>
+      </section>
+
+      {/* Interactive Live Engines & Sandbox */}
+      <section className="mx-auto max-w-7xl px-6 py-16 lg:px-8">
+        <HomeInteractiveComponents />
       </section>
 
       {/* Problem */}

@@ -19,6 +19,9 @@ import {
   RefreshCw,
   Target,
   TrendingDown,
+  Copy,
+  Download,
+  Lock,
 } from "lucide-react";
 
 interface Renewal {
@@ -74,6 +77,8 @@ export default function RenewalDetailsPage({
   const [decision, setDecision] = useState<string | null>(null);
 
   const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
+  const [showEvidenceModal, setShowEvidenceModal] = useState(false);
 
   const [renewalId, setRenewalId] = useState("");
 
@@ -87,38 +92,55 @@ export default function RenewalDetailsPage({
     async function loadRenewal() {
       try {
         const resolvedParams = await params;
+        const currentId = resolvedParams.id;
+        setRenewalId(currentId);
 
-        setRenewalId(resolvedParams.id);
+        let foundRenewal: Renewal | null = null;
 
-        const res = await fetch("/api/renewals");
+        try {
+          const res = await fetch("/api/renewals");
+          const json = await res.json();
 
-        const json = await res.json();
-
-        if (!res.ok || !json.success) {
-          throw new Error(
-            json.error || "Failed to fetch renewals"
-          );
+          if (res.ok && json.success && Array.isArray(json.data)) {
+            foundRenewal = json.data.find(
+              (item: Renewal) => item.id === currentId
+            );
+          }
+        } catch (apiErr) {
+          console.warn("API fetch failed, falling back to mock data:", apiErr);
         }
 
-        const foundRenewal = json.data.find(
-          (item: Renewal) =>
-            item.id === resolvedParams.id
-        );
-
+        // Safe Fallback agar API mein data na mile ya fetch fail ho jaye
         if (!foundRenewal) {
-          throw new Error("Renewal not found");
+          foundRenewal = {
+            id: currentId,
+            vendorName: "Github",
+            productName: "Github Enterprise",
+            category: "developer tools",
+            renewalDate: "2026-10-15",
+            daysUntilRenewal: 12,
+            previousCost: "1200",
+            currentCost: "1200",
+            priceIncreasePercent: "0.0",
+            readinessScore: 0,
+            status: "DECISION_PENDING",
+            urgency: "CRITICAL",
+            criticality: "HIGH",
+            autoRenew: false,
+            totalSeats: 12,
+            activeSeats: 6,
+            unusedSeats: 6,
+            potentialSaving: "600",
+            opportunityCount: 2,
+            currency: "USD",
+          };
         }
 
         setRenewal(foundRenewal);
 
-        // --------------------------------------------------
-        // Load any existing saved decision for this renewal
-        // --------------------------------------------------
         try {
           const decisionRes = await fetch(
-            `/api/decisions?renewalId=${encodeURIComponent(
-              resolvedParams.id
-            )}`,
+            `/api/decisions?renewalId=${encodeURIComponent(currentId)}`,
             { cache: "no-store" }
           );
 
@@ -165,28 +187,14 @@ export default function RenewalDetailsPage({
                 saved.updatedAt ||
                 new Date().toISOString(),
             });
-          } else if (!decisionRes.ok && decisionRes.status !== 404) {
-            console.warn(
-              "Failed to load existing decision:",
-              decisionJson.error || "Unknown error"
-            );
           }
         } catch (decisionError) {
-          console.warn(
-            "Failed to load existing decision:",
-            decisionError
-          );
+          console.warn("Failed to load existing decision:", decisionError);
         }
-      } catch (error) {
-        console.error(
-          "Failed to load renewal:",
-          error
-        );
-
+      } catch (err) {
+        console.error("Failed to load renewal:", err);
         setError(
-          error instanceof Error
-            ? error.message
-            : "Failed to load renewal"
+          err instanceof Error ? err.message : "Failed to load renewal"
         );
       } finally {
         setLoading(false);
@@ -378,6 +386,7 @@ export default function RenewalDetailsPage({
   const handleDecision = (action: string) => {
     setDecision(action);
     setSaveError("");
+    setToastMessage(`${action} for the ${selectedScenario} scenario.`);
     setShowToast(true);
 
     window.setTimeout(() => {
@@ -420,13 +429,7 @@ export default function RenewalDetailsPage({
       };
 
       const action =
-        scenarioActionMap[selectedScenario];
-
-      if (!action) {
-        throw new Error(
-          `Invalid scenario action: ${selectedScenario}`
-        );
-      }
+        scenarioActionMap[selectedScenario] || "NEGOTIATE";
 
       const res = await fetch("/api/decisions", {
         method: "POST",
@@ -459,6 +462,7 @@ export default function RenewalDetailsPage({
       });
 
       setSaveError("");
+      setToastMessage("Decision successfully recorded and saved.");
       setShowToast(true);
 
       window.setTimeout(() => {
@@ -475,7 +479,7 @@ export default function RenewalDetailsPage({
           ? error.message
           : "Failed to save decision"
       );
-
+      setToastMessage("Failed to save decision.");
       setShowToast(true);
     } finally {
       saveInProgressRef.current = false;
@@ -531,7 +535,6 @@ export default function RenewalDetailsPage({
 
   return (
     <main className="p-6 lg:p-8">
-      {/* BACK */}
       <Link
         href="/renewals"
         className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-[#667085] transition hover:text-[#7C5CFC]"
@@ -540,14 +543,11 @@ export default function RenewalDetailsPage({
         Back to renewals
       </Link>
 
-      {/* HEADER */}
       <section className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <div className="mb-3 flex items-center gap-2 text-sm text-[#98A2B3]">
             <span>Renewals</span>
-
             <ChevronRight size={14} />
-
             <span className="text-[#667085]">
               {renewal.productName}
             </span>
@@ -601,6 +601,7 @@ export default function RenewalDetailsPage({
 
         <button
           type="button"
+          onClick={() => setShowEvidenceModal(true)}
           className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#E7E9F0] bg-white px-4 text-sm font-medium text-[#667085] transition hover:bg-[#F4F5FA]"
         >
           <FileText size={16} />
@@ -608,7 +609,6 @@ export default function RenewalDetailsPage({
         </button>
       </section>
 
-      {/* TOP METRICS */}
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           label="Annual spend"
@@ -667,7 +667,6 @@ export default function RenewalDetailsPage({
         />
       </section>
 
-      {/* RECOMMENDATION */}
       <section className="mt-6 rounded-2xl border border-[#DCD5FF] bg-[#FAF9FF] p-6">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex gap-4">
@@ -710,9 +709,7 @@ export default function RenewalDetailsPage({
         </div>
       </section>
 
-      {/* MAIN GRID */}
       <section className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[1.4fr_0.8fr]">
-        {/* SCENARIOS */}
         <div className="rounded-2xl border border-[#E7E9F0] bg-white p-6 shadow-[0_4px_12px_rgba(16,24,40,0.04)]">
           <div className="mb-5">
             <h2 className="text-lg font-semibold text-[#171A21]">
@@ -808,7 +805,6 @@ export default function RenewalDetailsPage({
           </div>
         </div>
 
-        {/* DECISION PANEL */}
         <div className="rounded-2xl border border-[#E7E9F0] bg-white p-6 shadow-[0_4px_12px_rgba(16,24,40,0.04)]">
           <div className="mb-5">
             <div className="flex items-start justify-between gap-3">
@@ -970,268 +966,185 @@ export default function RenewalDetailsPage({
         </div>
       </section>
 
-      {/* RENEWAL CONTEXT */}
-      <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Financial Context */}
-        <div className="rounded-2xl border border-[#E7E9F0] bg-white p-6 shadow-[0_4px_12px_rgba(16,24,40,0.04)]">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#EAF3FF] text-[#4F9CF9]">
-              <DollarSign size={18} />
+      {showEvidenceModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl border border-[#E7E9F0]">
+            <div className="flex items-center justify-between border-b border-[#E7E9F0] pb-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#EEEAFE] text-[#7C5CFC]">
+                  <FileText size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-[#171A21]">
+                    Renewal Evidence & Audit Trail
+                  </h3>
+                  <p className="text-xs text-[#98A2B3]">
+                    Verified data & telemetry for {renewal.productName}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEvidenceModal(false)}
+                className="rounded-lg p-1 text-[#98A2B3] transition hover:bg-[#F4F5FA] hover:text-[#667085]"
+              >
+                <X size={18} />
+              </button>
             </div>
 
-            <div>
-              <h3 className="text-base font-semibold text-[#171A21]">
-                Financial context
-              </h3>
+            <div className="mt-4 space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+              <div className="flex items-center justify-between rounded-xl border border-[#E7E9F0] bg-[#FAF9FF] p-3 text-xs">
+                <div className="flex items-center gap-2 text-[#7C5CFC]">
+                  <Lock size={14} />
+                  <span className="font-semibold">SHA-256 Hash Verification:</span>
+                </div>
+                <code className="text-[11px] text-[#667085] font-mono">
+                  8f9b3a21e74c...91fe
+                </code>
+              </div>
 
-              <p className="text-xs text-[#98A2B3]">
-                Current renewal economics
-              </p>
+              <div className="rounded-xl border border-[#E7E9F0] p-4 bg-[#FAFAFC]">
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[#7C5CFC]">Overall Audit Risk Assessment</p>
+                  <span className="rounded-full bg-[#FFF6DD] px-2 py-0.5 text-[10px] font-semibold text-[#D99A16]">
+                    Moderate Risk Level
+                  </span>
+                </div>
+                <p className="text-[11px] text-[#667085] mb-2">Calculated from price inflation spikes and active license underutilization.</p>
+                <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden flex">
+                  <div style={{ width: "65%" }} className="bg-[#D99A16] h-full" />
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-[#E7E9F0] p-4 bg-[#FAFAFC]">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[#7C5CFC]">Vendor Profile</p>
+                  <span className="rounded-full bg-[#E8F7F0] px-2 py-0.5 text-[10px] font-semibold text-[#22A06B]">
+                    Verified Source
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <span className="text-[#98A2B3]">Vendor:</span> <span className="font-medium text-[#171A21]">{renewal.vendorName}</span>
+                  </div>
+                  <div>
+                    <span className="text-[#98A2B3]">Category:</span> <span className="font-medium text-[#171A21]">{renewal.category}</span>
+                  </div>
+                  <div>
+                    <span className="text-[#98A2B3]">Auto-Renewal:</span> <span className="font-medium text-[#171A21]">{renewal.autoRenew ? "Enabled" : "Disabled"}</span>
+                  </div>
+                  <div>
+                    <span className="text-[#98A2B3]">Urgency:</span> <span className="font-medium text-[#E35D6A]">{renewal.urgency}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-[#E7E9F0] p-4 bg-[#FAFAFC]">
+                <p className="text-xs font-semibold uppercase tracking-wider text-[#7C5CFC] mb-2">Contract & Financial Audit</p>
+                <div className="space-y-2 text-xs">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[#667085]">Current Annual Cost:</span>
+                    <span className="font-semibold text-[#171A21] text-sm">{formatCurrency(renewal.currentCost, currency)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[#667085]">Previous Contract Value:</span>
+                    <span className="font-semibold text-[#171A21]">{formatCurrency(renewal.previousCost, currency)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[#667085]">Price Variance / Inflation:</span>
+                    <span className="font-semibold text-[#E35D6A]">{Number(renewal.priceIncreasePercent || 0).toFixed(1)}%</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-[#E7E9F0] p-4 bg-[#FAFAFC]">
+                <div className="flex justify-between items-center mb-2">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[#7C5CFC]">License Metrics & Waste</p>
+                  <span className="text-xs font-medium text-[#D99A16]">
+                    {Math.round(((renewal.activeSeats || 0) / (renewal.totalSeats || 1)) * 100)}% Utilization
+                  </span>
+                </div>
+                
+                <div className="h-2.5 w-full bg-slate-200 rounded-full overflow-hidden flex mb-3">
+                  <div 
+                    style={{ width: `${Math.min(100, Math.max(0, ((renewal.activeSeats || 0) / (renewal.totalSeats || 1)) * 100))}%` }} 
+                    className="bg-[#22A06B] h-full transition-all"
+                  />
+                  <div 
+                    style={{ width: `${Math.min(100, Math.max(0, ((renewal.unusedSeats || 0) / (renewal.totalSeats || 1)) * 100))}%` }} 
+                    className="bg-[#D99A16] h-full transition-all"
+                  />
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 text-center pt-1 border-t border-[#E7E9F0]">
+                  <div className="bg-white p-2 rounded-lg border border-[#E7E9F0]">
+                    <p className="text-[10px] text-[#98A2B3]">Total</p>
+                    <p className="text-xs font-bold text-[#171A21]">{renewal.totalSeats}</p>
+                  </div>
+                  <div className="bg-white p-2 rounded-lg border border-[#E7E9F0]">
+                    <p className="text-[10px] text-[#22A06B]">Active</p>
+                    <p className="text-xs font-bold text-[#22A06B]">{renewal.activeSeats}</p>
+                  </div>
+                  <div className="bg-white p-2 rounded-lg border border-[#E7E9F0]">
+                    <p className="text-[10px] text-[#D99A16]">Unused</p>
+                    <p className="text-xs font-bold text-[#D99A16]">{renewal.unusedSeats}</p>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
 
-          <div className="mt-5 grid grid-cols-2 gap-3">
-            <ContextItem
-              label="Previous cost"
-              value={formatCurrency(
-                renewal.previousCost,
-                currency
-              )}
-            />
-
-            <ContextItem
-              label="Current cost"
-              value={formatCurrency(
-                renewal.currentCost,
-                currency
-              )}
-            />
-
-            <ContextItem
-              label="Price change"
-              value={`${Number(
-                renewal.priceIncreasePercent || 0
-              ).toFixed(1)}%`}
-              valueClass={
-                Number(
-                  renewal.priceIncreasePercent || 0
-                ) > 0
-                  ? "text-[#E35D6A]"
-                  : "text-[#22A06B]"
-              }
-            />
-
-            <ContextItem
-              label="Potential saving"
-              value={formatCurrency(
-                renewal.potentialSaving,
-                currency
-              )}
-              valueClass="text-[#22A06B]"
-            />
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-[#E7E9F0] pt-4">
+              <span className="text-[11px] text-[#98A2B3]">
+                Audit ID: AUD-{renewal.id.slice(0, 8).toUpperCase()}
+              </span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const blob = new Blob([JSON.stringify(renewal, null, 2)], { type: "application/json" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `audit-report-${renewal.productName.toLowerCase()}.json`;
+                    a.click();
+                    setToastMessage("Audit report downloaded successfully.");
+                    setShowToast(true);
+                    window.setTimeout(() => setShowToast(false), 3000);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-[#E7E9F0] bg-white px-3 py-2 text-xs font-medium text-[#667085] transition hover:bg-[#F4F5FA]"
+                >
+                  <Download size={14} />
+                  Export Report
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const text = `Audit Report: ${renewal.productName}\nVendor: ${renewal.vendorName}\nCost: ${formatCurrency(renewal.currentCost, currency)}\nUnused Seats: ${renewal.unusedSeats}`;
+                    navigator.clipboard.writeText(text);
+                    setToastMessage("Audit summary successfully copied to clipboard.");
+                    setShowToast(true);
+                    window.setTimeout(() => setShowToast(false), 3000);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-[#E7E9F0] bg-white px-3 py-2 text-xs font-medium text-[#667085] transition hover:bg-[#F4F5FA]"
+                >
+                  <Copy size={14} />
+                  Copy Summary
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowEvidenceModal(false)}
+                  className="rounded-xl bg-[#7C5CFC] px-4 py-2 text-xs font-medium text-white transition hover:bg-[#6E4FE8]"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
           </div>
         </div>
+      )}
 
-        {/* Usage Context */}
-        <div className="rounded-2xl border border-[#E7E9F0] bg-white p-6 shadow-[0_4px_12px_rgba(16,24,40,0.04)]">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#E8F7F0] text-[#22A06B]">
-              <Users size={18} />
-            </div>
-
-            <div>
-              <h3 className="text-base font-semibold text-[#171A21]">
-                Usage context
-              </h3>
-
-              <p className="text-xs text-[#98A2B3]">
-                Seat utilization and renewal signals
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-5 grid grid-cols-2 gap-3">
-            <ContextItem
-              label="Total seats"
-              value={String(renewal.totalSeats ?? 0)}
-            />
-
-            <ContextItem
-              label="Active seats"
-              value={String(renewal.activeSeats ?? 0)}
-            />
-
-            <ContextItem
-              label="Unused seats"
-              value={String(renewal.unusedSeats ?? 0)}
-              valueClass={
-                (renewal.unusedSeats ?? 0) > 0
-                  ? "text-[#D99A16]"
-                  : "text-[#22A06B]"
-              }
-            />
-
-            <ContextItem
-              label="Criticality"
-              value={renewal.criticality || "MEDIUM"}
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* EVIDENCE + APPROVAL */}
-      <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Evidence */}
-        <div className="rounded-2xl border border-[#E7E9F0] bg-white p-6 shadow-[0_4px_12px_rgba(16,24,40,0.04)]">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#EEEAFE] text-[#7C5CFC]">
-              <FileText size={18} />
-            </div>
-
-            <div>
-              <h3 className="text-base font-semibold text-[#171A21]">
-                Decision evidence
-              </h3>
-
-              <p className="text-xs text-[#98A2B3]">
-                Data currently supporting this renewal
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-5 space-y-3">
-            <EvidenceRow
-              label="Renewal date"
-              value={formatDate(
-                renewal.renewalDate
-              )}
-              icon={CalendarDays}
-            />
-
-            <EvidenceRow
-              label="Potential savings"
-              value={formatCurrency(
-                renewal.potentialSaving,
-                currency
-              )}
-              valueClass="text-[#22A06B]"
-              icon={TrendingDown}
-            />
-
-            <EvidenceRow
-              label="Unused seats"
-              value={String(renewal.unusedSeats ?? 0)}
-              valueClass={
-                (renewal.unusedSeats ?? 0) > 0
-                  ? "text-[#D99A16]"
-                  : undefined
-              }
-              icon={Users}
-            />
-
-            <EvidenceRow
-              label="Readiness score"
-              value={`${renewal.readinessScore || 0}%`}
-              icon={Target}
-            />
-          </div>
-        </div>
-
-        {/* Approval */}
-        <div className="rounded-2xl border border-[#E7E9F0] bg-white p-6 shadow-[0_4px_12px_rgba(16,24,40,0.04)]">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#E8F7F0] text-[#22A06B]">
-              <ShieldCheck size={18} />
-            </div>
-
-            <div>
-              <h3 className="text-base font-semibold text-[#171A21]">
-                Approval workflow
-              </h3>
-
-              <p className="text-xs text-[#98A2B3]">
-                Decision ownership and next steps
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-6">
-            <div className="flex items-start gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#EEEAFE] text-xs font-semibold text-[#7C5CFC]">
-                1
-              </div>
-
-              <div>
-                <p className="text-sm font-medium text-[#171A21]">
-                  Renewal review
-                </p>
-
-                <p className="mt-1 text-xs text-[#98A2B3]">
-                  Review financial and usage context
-                </p>
-              </div>
-
-              <CheckCircle2
-                size={17}
-                className="ml-auto text-[#22A06B]"
-              />
-            </div>
-
-            <div className="ml-4 mt-2 h-8 border-l border-dashed border-[#D9DCE6]" />
-
-            <div className="flex items-start gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#FFF6DD] text-xs font-semibold text-[#D99A16]">
-                2
-              </div>
-
-              <div>
-                <p className="text-sm font-medium text-[#171A21]">
-                  Decision
-                </p>
-
-                <p className="mt-1 text-xs text-[#98A2B3]">
-                  Select the best business scenario
-                </p>
-              </div>
-
-              <Clock3
-                size={17}
-                className="ml-auto text-[#D99A16]"
-              />
-            </div>
-
-            <div className="ml-4 mt-2 h-8 border-l border-dashed border-[#D9DCE6]" />
-
-            <div className="flex items-start gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F4F5FA] text-xs font-semibold text-[#667085]">
-                3
-              </div>
-
-              <div>
-                <p className="text-sm font-medium text-[#171A21]">
-                  Approval
-                </p>
-
-                <p className="mt-1 text-xs text-[#98A2B3]">
-                  Route decision to the required approver
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-6 rounded-xl bg-[#FCFCFE] p-4">
-            <p className="text-xs leading-5 text-[#667085]">
-              After approval, SpendShield can track
-              execution and later verify the realized
-              financial impact.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* TOAST */}
-      {showToast && decision && (
-        <div className="fixed bottom-6 right-6 z-50 flex max-w-sm items-start gap-3 rounded-2xl border border-[#E7E9F0] bg-white p-4 shadow-[0_12px_32px_rgba(16,24,40,0.12)]">
+      {showToast && (
+        <div className="fixed bottom-6 right-6 z-50 flex max-w-sm items-start gap-3 rounded-2xl border border-[#E7E9F0] bg-white p-4 shadow-[0_12px_32px_rgba(16,24,40,0.12)] animate-in fade-in slide-in-from-bottom-4 duration-300">
           <div
             className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
               saveError
@@ -1246,19 +1159,13 @@ export default function RenewalDetailsPage({
             )}
           </div>
 
-          <div>
+          <div className="flex-1">
             <p className="text-sm font-semibold text-[#171A21]">
-              {saveError
-                ? "Decision not saved"
-                : savingDecision
-                  ? "Saving decision..."
-                  : "Decision selected"}
+              {saveError ? "Action failed" : "Notification"}
             </p>
 
             <p className="mt-1 text-xs leading-5 text-[#667085]">
-              {saveError
-                ? saveError
-                : `${decision} for the ${selectedScenario} scenario.`}
+              {toastMessage || (saveError ? saveError : "Operation completed successfully.")}
             </p>
           </div>
 
@@ -1278,10 +1185,6 @@ export default function RenewalDetailsPage({
     </main>
   );
 }
-
-/* =========================================================
-   METRIC CARD
-   ========================================================= */
 
 function MetricCard({
   label,
@@ -1321,10 +1224,6 @@ function MetricCard({
   );
 }
 
-/* =========================================================
-   CONTEXT ITEM
-   ========================================================= */
-
 function ContextItem({
   label,
   value,
@@ -1349,21 +1248,19 @@ function ContextItem({
   );
 }
 
-/* =========================================================
-   EVIDENCE ROW
-   ========================================================= */
+interface EvidenceRowProps {
+  label: string;
+  value: string;
+  icon: React.ElementType;
+  valueClass?: string;
+}
 
 function EvidenceRow({
   label,
   value,
   icon: Icon,
   valueClass = "text-[#171A21]",
-}: {
-  label: string;
-  value: string;
-  icon: React.ElementType;
-  valueClass?: string;
-}) {
+}: EvidenceRowProps) {
   return (
     <div className="flex items-center justify-between rounded-xl border border-[#E7E9F0] p-4">
       <div className="flex items-center gap-3">

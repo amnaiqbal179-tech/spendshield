@@ -12,6 +12,8 @@ import {
   Trash2,
   DollarSign,
   AlertTriangle,
+  Upload,
+  FileSpreadsheet,
 } from "lucide-react";
 
 interface Subscription {
@@ -39,6 +41,79 @@ export default function SubscriptionsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [syncMessage, setSyncMessage] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
+  const [showCsvModal, setShowCsvModal] = useState(false);
+  const [importingCsv, setImportingCsv] = useState(false);
+  const [csvError, setCsvError] = useState("");
+  const [csvSuccess, setCsvSuccess] = useState("");
+
+  const handleCsvFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImportingCsv(true);
+    setCsvError("");
+    setCsvSuccess("");
+
+    try {
+      const text = await file.text();
+      const lines = text.split(/\r?\n/).filter((line) => line.trim() !== "");
+      if (lines.length < 2) {
+        throw new Error("CSV file must contain a header row and at least one data row.");
+      }
+
+      const headers = lines[0].split(",").map((h) => h.trim().toLowerCase().replace(/['"]/g, ""));
+      const rows = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(",").map((v) => v.trim().replace(/['"]/g, ""));
+        if (values.length < headers.length) continue;
+
+        const rowObj: Record<string, any> = {};
+        headers.forEach((header, idx) => {
+          rowObj[header] = values[idx];
+        });
+
+        rows.push({
+          vendorName: rowObj.vendor || rowObj.vendorname || rowObj.provider || "Unknown Vendor",
+          productName: rowObj.product || rowObj.productname || rowObj.software || rowObj.name || "SaaS Product",
+          category: rowObj.category || "General Software",
+          seatCount: Number(rowObj.seatcount || rowObj.seats || rowObj.licenses || 10),
+          activeSeats: Number(rowObj.activeseats || rowObj.activeusers || rowObj.active || 8),
+          annualCost: Number(rowObj.annualcost || rowObj.cost || rowObj.price || 1200),
+          billingCycle: (rowObj.billingcycle || rowObj.billing || "YEARLY").toUpperCase(),
+          renewalDate: rowObj.renewaldate || rowObj.renewal || new Date().toISOString().split("T")[0],
+          criticality: (rowObj.criticality || "MEDIUM").toUpperCase(),
+        });
+      }
+
+      if (rows.length === 0) {
+        throw new Error("No valid data rows found in CSV file.");
+      }
+
+      const res = await fetch("/api/subscriptions/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subscriptions: rows }),
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || "Failed to import CSV data.");
+      }
+
+      setCsvSuccess(`Successfully imported ${json.data?.importedCount || rows.length} subscriptions! 🎉`);
+      await fetchSubscriptions();
+      setTimeout(() => {
+        setShowCsvModal(false);
+        setCsvSuccess("");
+      }, 2000);
+    } catch (err) {
+      console.error("CSV Import Error:", err);
+      setCsvError(err instanceof Error ? err.message : "Failed to parse CSV file.");
+    } finally {
+      setImportingCsv(false);
+    }
+  };
 
   const [formData, setFormData] = useState({
     vendor: "",
@@ -236,6 +311,18 @@ export default function SubscriptionsPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              setCsvError("");
+              setCsvSuccess("");
+              setShowCsvModal(true);
+            }}
+            className="border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2.5 rounded-xl text-sm font-medium shadow-sm transition-all flex items-center gap-2"
+          >
+            <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+            <span>Import CSV</span>
+          </button>
+
           <button
             onClick={handleSync}
             disabled={syncing}
@@ -540,6 +627,67 @@ export default function SubscriptionsPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* CSV Import Modal */}
+      {showCsvModal && (
+        <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileSpreadsheet className="h-5 w-5 text-emerald-600" />
+                <h3 className="text-lg font-bold text-slate-900">Import CSV Subscriptions</h3>
+              </div>
+              <button
+                onClick={() => setShowCsvModal(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500">
+              Upload a `.csv` file containing subscription columns: <strong>Vendor, Product, Category, SeatCount, ActiveSeats, AnnualCost, BillingCycle, RenewalDate</strong>.
+            </p>
+
+            {csvError && (
+              <div className="p-3 bg-rose-50 border border-rose-100 text-rose-700 rounded-xl text-xs font-medium">
+                {csvError}
+              </div>
+            )}
+
+            {csvSuccess && (
+              <div className="p-3 bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-xl text-xs font-medium">
+                {csvSuccess}
+              </div>
+            )}
+
+            <div className="border-2 border-dashed border-slate-200 hover:border-indigo-400 rounded-2xl p-8 text-center bg-slate-50/50 hover:bg-indigo-50/30 transition-all relative">
+              <input
+                type="file"
+                accept=".csv"
+                onChange={handleCsvFileUpload}
+                disabled={importingCsv}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+              />
+              <Upload className="h-8 w-8 text-indigo-500 mx-auto mb-2" />
+              <p className="text-sm font-semibold text-slate-800">
+                {importingCsv ? "Parsing & Importing CSV..." : "Click or Drag & Drop CSV File"}
+              </p>
+              <p className="text-xs text-slate-400 mt-1">Supports standard CSV spreadsheet exports</p>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setShowCsvModal(false)}
+                className="px-4 py-2 rounded-xl text-sm font-medium border border-slate-200 text-slate-700 hover:bg-slate-50"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

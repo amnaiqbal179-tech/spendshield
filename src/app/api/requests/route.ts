@@ -195,7 +195,6 @@ export async function POST(req: Request) {
 
       if (department) {
         departmentName = department.name;
-        // Calculate total approved cost in this department so far
         const currentApprovedSpent = department.requests.reduce(
           (sum, req) => sum + Number(req.estimatedCost),
           0
@@ -203,7 +202,6 @@ export async function POST(req: Request) {
 
         const monthlyLimit = Number(department.monthlyBudget);
 
-        // Check if adding this new request exceeds the monthly budget limit
         if (currentApprovedSpent + costNum > monthlyLimit) {
           budgetExceeded = true;
         }
@@ -236,7 +234,7 @@ export async function POST(req: Request) {
       },
     });
 
-    // 6. Notifications generate karein managers ke liye (Budget warning ke sath agar exceed ho)
+    // 6. Notifications generate karein managers ke liye
     if (managersAndAdmins.length > 0) {
       const title = budgetExceeded ? "⚠️ Budget Exceeded Request" : "New Software Request 📦";
       const message = budgetExceeded
@@ -275,7 +273,7 @@ export async function POST(req: Request) {
 // PUT: Request ko Approve ya Reject karne ke liye (Manager Action) aur Employee ko notify karne ke liye
 export async function PUT(req: Request) {
   try {
-    const { userId } = await auth();
+    const { userId, orgId } = await auth();
 
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -294,6 +292,26 @@ export async function PUT(req: Request) {
 
     if (!dbUser) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    // Optional: Verify that the user has ADMIN or MANAGER role in this organization
+    if (orgId) {
+      const organization = await prisma.organization.findUnique({
+        where: { clerkOrgId: orgId },
+      });
+
+      if (organization) {
+        const membership = await prisma.membership.findFirst({
+          where: {
+            userId: dbUser.id,
+            organizationId: organization.id,
+          },
+        });
+
+        if (membership && membership.role === "EMPLOYEE") {
+          return NextResponse.json({ error: "Forbidden: Only managers can approve or reject requests" }, { status: 403 });
+        }
+      }
     }
 
     // Request update karein
