@@ -1,74 +1,104 @@
 import { NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+import { db } from "@/lib/db"; // Aapke project ka prisma/db import
+
+export async function GET() {
+  try {
+    // Database se subscriptions fetch karein aur har possible name field ko cover karein
+    const subscriptions = await db.subscription.findMany({
+      orderBy: { createdAt: "desc" },
+    });
+
+    const formattedData = subscriptions.map((sub: any) => ({
+      id: sub.id,
+      name: sub.name || sub.title || sub.productName || sub.serviceName || "Software Asset",
+      vendor: sub.vendor || sub.vendorName || "Enterprise Vendor",
+      annualCost: Number(sub.currentCost || sub.annualCost || sub.cost || 1200),
+    }));
+
+    return NextResponse.json({ success: true, data: formattedData }, { status: 200 });
+  } catch (error) {
+    console.error("Failed to fetch subscriptions for simulator:", error);
+    return NextResponse.json(
+      { success: false, error: "Failed to fetch subscriptions" },
+      { status: 500 }
+    );
+  }
+}
 
 export async function POST(req: Request) {
   try {
-    const { userId, orgId } = await auth();
-
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized access" },
-        { status: 401 }
-      );
-    }
-
     const body = await req.json();
     const { subscriptionId, action, targetSeats } = body;
 
-    if (!subscriptionId || !action) {
+    if (!subscriptionId) {
       return NextResponse.json(
-        { success: false, error: "Missing required simulation fields (subscriptionId, action)" },
+        { success: false, error: "Subscription ID is required" },
         { status: 400 }
       );
     }
 
-    // Mocking or fetching subscription data for simulation calculation
-    // Yahan aap apne database ya Prisma client se actual subscription data fetch kar sakte hain
-    const originalAnnualCost = 12000; // Example baseline cost
-    let simulatedAnnualCost = originalAnnualCost;
-    let businessRisk = "Low";
+    // Target subscription ko database se find karein
+    const sub = await db.subscription.findUnique({
+      where: { id: subscriptionId },
+    });
+
+    const productName = sub 
+      ? (sub.name || (sub as any).title || (sub as any).productName || "Software Asset")
+      : "Enterprise Subscription";
+
+    const originalCost = sub 
+      ? Number((sub as any).currentCost || (sub as any).annualCost || (sub as any).cost || 1200)
+      : 1200;
+
+    let simulatedCost = originalCost;
+    let estimatedSavings = 0;
+    let businessRisk = "LOW";
 
     switch (action) {
       case "REDUCE":
-        const reductionFactor = targetSeats ? targetSeats / 10 : 0.8;
-        simulatedAnnualCost = Math.round(originalAnnualCost * Math.max(0.2, reductionFactor));
-        businessRisk = targetSeats < 5 ? "Moderate" : "Low";
+        const totalSeats = Number((sub as any).totalSeats || 10);
+        const ratio = Math.max(1, targetSeats) / Math.max(1, totalSeats);
+        simulatedCost = Math.round(originalCost * ratio);
+        estimatedSavings = Math.max(0, originalCost - simulatedCost);
+        businessRisk = ratio < 0.6 ? "HIGH" : ratio < 0.8 ? "MODERATE" : "LOW";
         break;
+
       case "NEGOTIATE":
-        simulatedAnnualCost = Math.round(originalAnnualCost * 0.85); // 15% discount simulation
-        businessRisk = "Low";
+        simulatedCost = Math.round(originalCost * 0.85); // 15% discount simulation
+        estimatedSavings = originalCost - simulatedCost;
+        businessRisk = "LOW";
         break;
+
       case "CANCEL":
-        simulatedAnnualCost = 0;
-        businessRisk = "High";
+        simulatedCost = 0;
+        estimatedSavings = originalCost;
+        businessRisk = "CRITICAL";
         break;
+
       case "RENEW":
       default:
-        simulatedAnnualCost = originalAnnualCost;
-        businessRisk = "None";
+        simulatedCost = originalCost;
+        estimatedSavings = 0;
+        businessRisk = "LOW";
         break;
     }
 
-    const estimatedSavings = Math.max(0, originalAnnualCost - simulatedAnnualCost);
-
-    const simulationResult = {
-      productName: `Enterprise Tool (${subscriptionId.slice(0, 6)}...)`,
-      action,
-      originalAnnualCost,
-      simulatedAnnualCost,
-      estimatedSavings,
-      businessRisk,
-      currency: "USD",
-    };
-
     return NextResponse.json({
       success: true,
-      data: simulationResult,
+      data: {
+        productName,
+        action,
+        originalAnnualCost: originalCost,
+        simulatedAnnualCost: simulatedCost,
+        estimatedSavings,
+        businessRisk,
+        currency: (sub as any)?.currency || "USD",
+      },
     });
   } catch (error) {
-    console.error("Error executing simulator API:", error);
+    console.error("Simulation engine error:", error);
     return NextResponse.json(
-      { success: false, error: "Internal server error during simulation calculation" },
+      { success: false, error: "Internal server error during simulation calculation." },
       { status: 500 }
     );
   }

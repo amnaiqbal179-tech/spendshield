@@ -54,7 +54,7 @@ export async function GET() {
         organizationId: organization.id,
       },
       include: {
-        department: true, // Department details fetch karne ke liye
+        department: true,
       },
       orderBy: {
         renewalDate: "asc",
@@ -63,21 +63,30 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      data: subscriptions.map((subscription) => ({
-        id: subscription.id,
-        vendorName: subscription.vendor,
-        productName: subscription.productName,
-        category: subscription.category ?? "Uncategorized",
-        seatCount: subscription.licenseCount,
-        activeSeats: subscription.activeUsers,
-        cost: subscription.annualCost.toString(),
-        currency: organization.currency,
-        billingCycle: subscription.billingCycle,
-        renewalDate: subscription.renewalDate,
-        criticality: subscription.criticality,
-        departmentId: subscription.departmentId,
-        departmentName: subscription.department?.name ?? "General",
-      })),
+      data: subscriptions.map((subscription) => {
+        const productName = subscription.productName || subscription.title || "Enterprise Software Asset";
+        const vendorName = subscription.vendor || subscription.vendorName || "Verified Vendor";
+
+        return {
+          id: subscription.id,
+          name: productName, // Fallback name for components looking for 'name'
+          title: productName,
+          vendorName: vendorName,
+          vendor: vendorName,
+          productName: productName,
+          category: subscription.category ?? "Uncategorized",
+          seatCount: subscription.licenseCount,
+          activeSeats: subscription.activeUsers,
+          cost: subscription.annualCost.toString(),
+          annualCost: Number(subscription.annualCost || 0),
+          currency: organization.currency,
+          billingCycle: subscription.billingCycle,
+          renewalDate: subscription.renewalDate,
+          criticality: subscription.criticality,
+          departmentId: subscription.departmentId,
+          departmentName: subscription.department?.name ?? "General",
+        };
+      }),
     });
   } catch (error) {
     console.error("GET /api/subscriptions error:", error);
@@ -209,7 +218,6 @@ export async function POST(request: Request) {
 
     const monthlyCost = annualCost / 12;
 
-    // Subscription create karein with proposal metadata fields
     const subscription = await prisma.subscription.create({
       data: {
         organizationId: organization.id,
@@ -229,7 +237,6 @@ export async function POST(request: Request) {
       },
     });
 
-    // Associated Renewal Record create karein taake Renewal Intelligence & Simulator kaam kar sakay
     await prisma.renewal.create({
       data: {
         organizationId: organization.id,
@@ -246,6 +253,7 @@ export async function POST(request: Request) {
         success: true,
         data: {
           id: subscription.id,
+          name: subscription.productName,
           vendorName: subscription.vendor,
           productName: subscription.productName,
           category: subscription.category ?? "Uncategorized",
@@ -357,14 +365,12 @@ export async function DELETE(request: Request) {
       );
     }
 
-    // Delete associated renewal records first
     await prisma.renewal.deleteMany({
       where: {
         subscriptionId: id,
       },
     });
 
-    // Delete the subscription
     await prisma.subscription.delete({
       where: {
         id,

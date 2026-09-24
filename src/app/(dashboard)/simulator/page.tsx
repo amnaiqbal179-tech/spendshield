@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Calculator, ArrowRight, ShieldCheck, DollarSign, Sparkles, RefreshCw, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Calculator, ShieldCheck, Sparkles } from "lucide-react";
 
 interface SimulationResult {
   productName: string;
@@ -15,9 +15,10 @@ interface SimulationResult {
 
 interface SubscriptionOption {
   id: string;
-  name: string;
-  vendor: string;
-  annualCost: number;
+  name?: string;
+  title?: string;
+  vendor?: string;
+  annualCost?: number;
 }
 
 export default function SimulatorPage() {
@@ -30,17 +31,18 @@ export default function SimulatorPage() {
   const [fetchingSubs, setFetchingSubs] = useState(true);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Fetch active subscriptions list for easy selection
+  // Fetch real active subscriptions from database API
   useEffect(() => {
     async function fetchSubscriptions() {
       try {
         const res = await fetch("/api/subscriptions");
         const json = await res.json();
-        if (json.success && json.data) {
-          setSubscriptions(json.data);
-          if (json.data.length > 0) {
-            setSubscriptionId(json.data[0].id);
-          }
+        // Support both json.data and direct array formats
+        const subData = json.success ? json.data : (Array.isArray(json) ? json : []);
+        
+        if (subData && subData.length > 0) {
+          setSubscriptions(subData);
+          setSubscriptionId(subData[0].id);
         }
       } catch (error) {
         console.error("Failed to load subscriptions for simulator", error);
@@ -54,7 +56,7 @@ export default function SimulatorPage() {
   const handleSimulate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!subscriptionId) {
-      setToastMessage("Please select or enter a valid Subscription ID.");
+      setToastMessage("Please select a valid subscription.");
       return;
     }
 
@@ -77,7 +79,7 @@ export default function SimulatorPage() {
         setResult(json.data);
         setToastMessage("Simulation executed successfully!");
       } else {
-        setToastMessage(json.error || "Simulation failed. Please verify the ID.");
+        setToastMessage(json.error || "Simulation failed. Please verify the selection.");
       }
     } catch (error) {
       console.error("Simulation request failed", error);
@@ -132,21 +134,21 @@ export default function SimulatorPage() {
                   value={subscriptionId}
                   onChange={(e) => setSubscriptionId(e.target.value)}
                 >
-                  {subscriptions.map((sub) => (
-                    <option key={sub.id} value={sub.id}>
-                      {sub.name} ({sub.vendor})
-                    </option>
-                  ))}
+                  {subscriptions.map((sub) => {
+                    // Safe mapping for real subscription fields with multiple fallbacks
+                    const displayName = sub.name || sub.title || "Unnamed Subscription";
+                    const displayVendor = sub.vendor ? ` — ${sub.vendor}` : "";
+                    return (
+                      <option key={sub.id} value={sub.id}>
+                        {displayName}{displayVendor}
+                      </option>
+                    );
+                  })}
                 </select>
               ) : (
-                <input
-                  type="text"
-                  required
-                  placeholder="Enter Subscription ID"
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600"
-                  value={subscriptionId}
-                  onChange={(e) => setSubscriptionId(e.target.value)}
-                />
+                <div className="text-xs text-rose-500 bg-rose-50 border border-rose-100 p-2.5 rounded-xl">
+                  No active subscriptions found. Please add subscriptions first.
+                </div>
               )}
             </div>
 
@@ -183,8 +185,8 @@ export default function SimulatorPage() {
 
             <button
               type="submit"
-              disabled={loading}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-3 rounded-xl text-sm font-semibold shadow-md shadow-indigo-600/20 transition-all flex items-center justify-center gap-2 mt-4 cursor-pointer"
+              disabled={loading || subscriptions.length === 0}
+              className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white px-4 py-3 rounded-xl text-sm font-semibold shadow-md shadow-indigo-600/20 transition-all flex items-center justify-center gap-2 mt-4 cursor-pointer"
             >
               <Calculator className="h-4 w-4" />
               <span>{loading ? "Calculating Impact..." : "Run Simulation"}</span>

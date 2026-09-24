@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Search, Bell, ChevronDown, Check, Loader2 } from "lucide-react";
+import { Search, Bell, ChevronDown, Check, Loader2, Sun, Moon } from "lucide-react";
 
 interface Notification {
   id: string;
@@ -16,7 +16,26 @@ export default function Topbar() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [darkMode, setDarkMode] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Initialize theme state on mount
+  useEffect(() => {
+    const isDark = document.documentElement.classList.contains("dark");
+    setDarkMode(isDark);
+  }, []);
+
+  const toggleTheme = () => {
+    if (darkMode) {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("theme", "light");
+      setDarkMode(false);
+    } else {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("theme", "dark");
+      setDarkMode(true);
+    }
+  };
 
   // 1. Notifications fetch karein API se
   const fetchNotifications = async () => {
@@ -36,12 +55,11 @@ export default function Topbar() {
 
   useEffect(() => {
     fetchNotifications();
-    // Optional: Har 30 seconds baad automatic refresh ke liye
     const interval = setInterval(fetchNotifications, 30000);
     return () => clearInterval(interval);
   }, []);
 
-  // Dropdown ke bahar click karne par close ho jaye
+  // Dropdown ke bahار click karne par close ho jaye
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -85,7 +103,7 @@ export default function Topbar() {
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   return (
-    <header className="flex h-[76px] items-center justify-between border-b border-[#E7E9F0] bg-white px-6 relative">
+    <header className="flex h-[76px] items-center justify-between border-b border-[#E7E9F0] dark:border-slate-800 bg-white dark:bg-[#171A21] px-6 relative transition-colors">
       {/* Search */}
       <div className="relative w-[320px]">
         <Search
@@ -98,34 +116,50 @@ export default function Topbar() {
           placeholder="Search renewals, vendors..."
           className="
             h-10 w-full rounded-xl
-            border border-[#E7E9F0]
-            bg-[#FCFCFE]
+            border border-[#E7E9F0] dark:border-slate-800
+            bg-[#FCFCFE] dark:bg-slate-900
             pl-10 pr-4
-            text-[13px] text-[#171A21]
+            text-[13px] text-[#171A21] dark:text-slate-100
             placeholder:text-[#98A2B3]
             outline-none
             transition-all
             focus:border-[#7C5CFC]
-            focus:bg-white
+            focus:bg-white dark:focus:bg-slate-900
             focus:ring-4
-            focus:ring-[#EEEAFE]
+            focus:ring-[#EEEAFE] dark:focus:ring-indigo-950/50
           "
         />
       </div>
 
       {/* Right Side */}
       <div className="flex items-center gap-3" ref={dropdownRef}>
+        {/* Theme Toggle Button */}
+        <button
+          onClick={toggleTheme}
+          className="
+            flex h-10 w-10 items-center justify-center
+            rounded-xl border border-[#E7E9F0] dark:border-slate-800
+            bg-white dark:bg-slate-900 text-[#667085] dark:text-slate-300
+            transition-all duration-200
+            hover:bg-[#F7F8FC] dark:hover:bg-slate-800
+            hover:text-[#171A21] dark:hover:text-white
+          "
+          aria-label="Toggle theme"
+        >
+          {darkMode ? <Sun size={18} strokeWidth={1.8} /> : <Moon size={18} strokeWidth={1.8} />}
+        </button>
+
         {/* Notification Bell Container */}
         <div className="relative">
           <button
             onClick={() => setIsOpen(!isOpen)}
             className="
               relative flex h-10 w-10 items-center justify-center
-              rounded-xl border border-[#E7E9F0]
-              bg-white text-[#667085]
+              rounded-xl border border-[#E7E9F0] dark:border-slate-800
+              bg-white dark:bg-slate-900 text-[#667085] dark:text-slate-300
               transition-all duration-200
-              hover:bg-[#F7F8FC]
-              hover:text-[#171A21]
+              hover:bg-[#F7F8FC] dark:hover:bg-slate-800
+              hover:text-[#171A21] dark:hover:text-white
             "
             aria-label="Notifications"
           >
@@ -139,13 +173,13 @@ export default function Topbar() {
 
           {/* Notifications Dropdown Modal */}
           {isOpen && (
-            <div className="absolute right-0 mt-3 w-80 sm:w-96 rounded-2xl border border-[#E7E9F0] bg-white shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2">
+            <div className="absolute right-0 mt-3 w-80 sm:w-96 rounded-2xl border border-[#E7E9F0] dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2">
               {/* Header */}
-              <div className="flex items-center justify-between border-b border-[#E7E9F0] px-4 py-3 bg-[#FCFCFE]">
+              <div className="flex items-center justify-between border-b border-[#E7E9F0] dark:border-slate-800 px-4 py-3 bg-[#FCFCFE] dark:bg-slate-950">
                 <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-semibold text-[#171A21]">Notifications</h3>
+                  <h3 className="text-sm font-semibold text-[#171A21] dark:text-slate-100">Notifications</h3>
                   {unreadCount > 0 && (
-                    <span className="rounded-full bg-[#EEEAFE] px-2 py-0.5 text-[11px] font-semibold text-[#7C5CFC]">
+                    <span className="rounded-full bg-[#EEEAFE] dark:bg-indigo-950 px-2 py-0.5 text-[11px] font-semibold text-[#7C5CFC] dark:text-indigo-300">
                       {unreadCount} new
                     </span>
                   )}
@@ -153,7 +187,7 @@ export default function Topbar() {
                 {unreadCount > 0 && (
                   <button
                     onClick={handleMarkAllAsRead}
-                    className="text-xs font-medium text-[#7C5CFC] hover:underline flex items-center gap-1"
+                    className="text-xs font-medium text-[#7C5CFC] dark:text-indigo-400 hover:underline flex items-center gap-1"
                   >
                     <Check size={13} /> Mark all read
                   </button>
@@ -161,7 +195,7 @@ export default function Topbar() {
               </div>
 
               {/* List */}
-              <div className="max-h-[350px] overflow-y-auto divide-y divide-[#E7E9F0]">
+              <div className="max-h-[350px] overflow-y-auto divide-y divide-[#E7E9F0] dark:divide-slate-800">
                 {loading && notifications.length === 0 ? (
                   <div className="flex items-center justify-center py-8 text-[#98A2B3]">
                     <Loader2 className="animate-spin mr-2" size={16} /> Loading...
@@ -175,12 +209,12 @@ export default function Topbar() {
                     <div
                       key={notif.id}
                       onClick={() => !notif.read && handleMarkAsRead(notif.id)}
-                      className={`p-4 transition-colors cursor-pointer hover:bg-[#F7F8FC] ${
-                        !notif.read ? "bg-[#FAFAFE]" : "opacity-75"
+                      className={`p-4 transition-colors cursor-pointer hover:bg-[#F7F8FC] dark:hover:bg-slate-800/50 ${
+                        !notif.read ? "bg-[#FAFAFE] dark:bg-slate-800/20" : "opacity-75"
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2">
-                        <h4 className="text-[13px] font-semibold text-[#171A21]">
+                        <h4 className="text-[13px] font-semibold text-[#171A21] dark:text-slate-200">
                           {notif.title}
                         </h4>
                         <span className="text-[10px] text-[#98A2B3] whitespace-nowrap">
@@ -190,7 +224,7 @@ export default function Topbar() {
                           })}
                         </span>
                       </div>
-                      <p className="mt-1 text-xs text-[#667085] leading-relaxed">
+                      <p className="mt-1 text-xs text-[#667085] dark:text-slate-400 leading-relaxed">
                         {notif.message}
                       </p>
                     </div>
@@ -202,7 +236,7 @@ export default function Topbar() {
         </div>
 
         {/* Divider */}
-        <div className="mx-1 h-7 w-px bg-[#E7E9F0]" />
+        <div className="mx-1 h-7 w-px bg-[#E7E9F0] dark:bg-slate-800" />
 
         {/* Profile */}
         <button
@@ -210,15 +244,15 @@ export default function Topbar() {
             flex items-center gap-3 rounded-xl
             px-2 py-1.5
             transition-colors
-            hover:bg-[#F7F8FC]
+            hover:bg-[#F7F8FC] dark:hover:bg-slate-800
           "
         >
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#EEEAFE]">
-            <span className="text-xs font-semibold text-[#7C5CFC]">AI</span>
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#EEEAFE] dark:bg-indigo-950">
+            <span className="text-xs font-semibold text-[#7C5CFC] dark:text-indigo-300">AI</span>
           </div>
 
           <div className="hidden text-left sm:block">
-            <p className="text-[13px] font-semibold text-[#171A21]">Amna Iqbal</p>
+            <p className="text-[13px] font-semibold text-[#171A21] dark:text-slate-100">Amna Iqbal</p>
             <p className="text-[11px] text-[#98A2B3]">Finance Admin</p>
           </div>
 
