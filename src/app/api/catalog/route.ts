@@ -1,49 +1,54 @@
-import { NextResponse } from "next/server";
-import { prisma as db } from "@/lib/prisma"; // Apne project ke mutabiq db import check kar lein (jaise @/lib/db ya @/lib/prisma)
 import { auth } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
 export async function GET() {
   try {
-    const { userId } = await auth();
+    const { userId, orgId } = await auth();
 
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!userId || !orgId) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 }
+      );
     }
 
-    // User ki organization find karein membership ke zariye
-    const membership = await db.membership.findFirst({
-      where: {
-        User: {
-          clerkUserId: userId,
-        },
-      },
+    const organization = await prisma.organization.findUnique({
+      where: { clerkOrgId: orgId },
     });
 
-    if (!membership) {
-      return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+    if (!organization) {
+      return NextResponse.json(
+        { success: false, error: "Organization not found" },
+        { status: 400 }
+      );
     }
 
-    // Organization ki active subscriptions fetch karein jo catalog mein dikhengi
-    const catalogItems = await db.subscription.findMany({
+    // Database se real subscriptions fetch karein jo catalog mein show hongi
+    const subscriptions = await prisma.subscription.findMany({
       where: {
-        organizationId: membership.organizationId,
+        organizationId: organization.id,
         status: "ACTIVE",
       },
-      select: {
-        id: true,
-        productName: true,
-        vendor: true,
-        category: true,
-        plan: true,
-        monthlyCost: true,
-      },
+      orderBy: { productName: "asc" },
     });
 
-    return NextResponse.json({ success: true, data: catalogItems }, { status: 200 });
+    const catalogData = subscriptions.map((sub) => ({
+      id: sub.id,
+      productName: sub.productName,
+      vendor: sub.vendor,
+      category: sub.category || "General",
+      plan: sub.billingCycle === "YEARLY" ? "Enterprise Annual" : "Standard Plan",
+    }));
+
+    return NextResponse.json({
+      success: true,
+      data: catalogData,
+    });
   } catch (error) {
-    console.error("Error fetching catalog:", error);
+    console.error("GET /api/catalog error:", error);
     return NextResponse.json(
-      { error: "Internal Server Error" },
+      { success: false, error: "Failed to fetch software catalog" },
       { status: 500 }
     );
   }

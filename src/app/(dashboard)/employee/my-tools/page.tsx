@@ -45,7 +45,7 @@ export default function MyToolsPage() {
         <div className="absolute right-0 top-0 translate-x-8 -translate-y-8 h-56 w-56 rounded-full bg-white/10 blur-2xl pointer-events-none" />
         <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <div className="inline-flex items-center gap-1.5 rounded-full bg-white/25 px-3 py-1 text-xs font-semibold tracking-wide uppercase backdrop-blur-md mb-3">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-white/25 px-3 py-1 text-xs font-semibold tracking-wide uppercase backdrop-blur-md mb-3 text-white">
               <Sparkles size={14} /> My Workspace
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">Assigned Software & Tools</h1>
@@ -55,7 +55,7 @@ export default function MyToolsPage() {
           </div>
           <Link
             href="/employee/catalog"
-            className="self-start sm:self-auto inline-flex items-center gap-2 bg-white text-[#7C5CFC] hover:bg-[#F4F1FE] text-xs font-bold px-4 py-2.5 rounded-xl shadow-md transition-all shrink-0"
+            className="self-start sm:self-auto inline-flex items-center gap-2 bg-white text-[#7C5CFC] hover:bg-[#F4F1FE] text-xs font-bold px-4 py-2.5 rounded-xl shadow-md transition-all shrink-0 !text-[#7C5CFC]"
           >
             Browse Software Catalog
           </Link>

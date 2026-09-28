@@ -157,11 +157,12 @@ export default function HomeInteractiveComponents() {
               </div>
             </div>
 
+            {/* FIXED BUTTON: Changed text color to dark purple/blue (#2E129A) for clear contrast */}
             <Link
               href="/sign-up"
-              className="w-full mt-4 py-3 bg-white text-[#7C5CFC] hover:bg-[#F4F1FE] transition-all text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg"
+              className="w-full mt-4 py-3.5 bg-white text-[#2E129A] hover:bg-[#F4F1FE] transition-all text-xs sm:text-sm font-extrabold rounded-xl flex items-center justify-center gap-2 shadow-lg"
             >
-              Start Unlocking Savings <ArrowRight size={14} />
+              Start Unlocking Savings <ArrowRight size={16} />
             </Link>
           </div>
         </div>

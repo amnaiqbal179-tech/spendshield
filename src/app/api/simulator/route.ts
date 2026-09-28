@@ -1,18 +1,18 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db"; // Aapke project ka prisma/db import
+import { prisma } from "@/lib/prisma";
 
 export async function GET() {
   try {
-    // Database se subscriptions fetch karein aur har possible name field ko cover karein
-    const subscriptions = await db.subscription.findMany({
+    // Database se subscriptions fetch karein
+    const subscriptions = await prisma.subscription.findMany({
       orderBy: { createdAt: "desc" },
     });
 
     const formattedData = subscriptions.map((sub: any) => ({
       id: sub.id,
-      name: sub.name || sub.title || sub.productName || sub.serviceName || "Software Asset",
+      name: sub.productName || sub.name || sub.title || "Software Asset",
       vendor: sub.vendor || sub.vendorName || "Enterprise Vendor",
-      annualCost: Number(sub.currentCost || sub.annualCost || sub.cost || 1200),
+      annualCost: Number(sub.annualCost || sub.cost || 1200),
     }));
 
     return NextResponse.json({ success: true, data: formattedData }, { status: 200 });
@@ -38,16 +38,16 @@ export async function POST(req: Request) {
     }
 
     // Target subscription ko database se find karein
-    const sub = await db.subscription.findUnique({
+    const sub = await prisma.subscription.findUnique({
       where: { id: subscriptionId },
     });
 
     const productName = sub 
-      ? (sub.name || (sub as any).title || (sub as any).productName || "Software Asset")
+      ? (sub.productName || (sub as any).name || (sub as any).title || "Software Asset")
       : "Enterprise Subscription";
 
     const originalCost = sub 
-      ? Number((sub as any).currentCost || (sub as any).annualCost || (sub as any).cost || 1200)
+      ? Number(sub.annualCost || (sub as any).cost || 1200)
       : 1200;
 
     let simulatedCost = originalCost;
@@ -56,7 +56,7 @@ export async function POST(req: Request) {
 
     switch (action) {
       case "REDUCE":
-        const totalSeats = Number((sub as any).totalSeats || 10);
+        const totalSeats = Number(sub?.licenseCount || (sub as any)?.totalSeats || 10);
         const ratio = Math.max(1, targetSeats) / Math.max(1, totalSeats);
         simulatedCost = Math.round(originalCost * ratio);
         estimatedSavings = Math.max(0, originalCost - simulatedCost);
@@ -92,7 +92,7 @@ export async function POST(req: Request) {
         simulatedAnnualCost: simulatedCost,
         estimatedSavings,
         businessRisk,
-        currency: (sub as any)?.currency || "USD",
+        currency: "USD",
       },
     });
   } catch (error) {
